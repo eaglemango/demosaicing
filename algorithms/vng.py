@@ -21,13 +21,15 @@ class VNG(DemosaicingAlgorithm):
     def __init__(self):
         self.colors = None
         self.intensity = None
+        self.nanned = None
 
     def apply(self, image: np.ndarray) -> np.ndarray:
         # Make a copy in order not to corrupt RBG CFA image
-        result = image.copy()
+        result = image[2:-2, 2:-2]
 
         self.colors = np.argmax(image, axis=-1)
         self.intensity = np.max(image, axis=-1)
+        self.nanned = np.where(image != 0, image, np.nan)
 
         # (height, width, channels)
         h, w, c = image.shape
@@ -35,7 +37,7 @@ class VNG(DemosaicingAlgorithm):
         for i in range(2, h - 2):
             for j in range(2, w - 2):
                 # Try to recover current pixel
-                result[i][j] = self.recover_pixel(i, j, image)
+                result[i - 2][j - 2] = self.recover_pixel(i, j, image).astype("uint64")
 
         return result
 
@@ -185,7 +187,7 @@ class VNG(DemosaicingAlgorithm):
         e_pixels = self.intensity[i-1:i+2, j+1:j+3]
         w_pixels = self.intensity[i-1:i+2, j-1:j+1]
         e_w_diff = np.abs(e_pixels - w_pixels)
-        e_w_diff[[1, 0], [1, 1]] *= 2
+        e_w_diff[[1, 1], [0, 1]] *= 2
 
         grad_e = np.sum(e_w_diff) / 2
 
@@ -201,7 +203,7 @@ class VNG(DemosaicingAlgorithm):
         w_pixels = self.intensity[i-1:i+2, j-2:j]
         e_pixels = self.intensity[i-1:i+2, j:j+2]
         w_e_diff = np.abs(w_pixels - e_pixels)
-        w_e_diff[[1, 0], [1, 1]] *= 2
+        w_e_diff[[1, 1], [0, 1]] *= 2
 
         grad_w = np.sum(w_e_diff) / 2
 
@@ -288,8 +290,8 @@ class VNG(DemosaicingAlgorithm):
         pixel_color = self.colors[i][j]
 
         if direction == Compass.N:
-            window = image[i-2:i+1, j-1:j+2, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i-2:i+1, j-1:j+2, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -298,8 +300,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.E:
-            window = image[i-1:i+2, j:j+3, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i-1:i+2, j:j+3, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -308,8 +310,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.S:
-            window = image[i:i+3, j-1:j+2, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i:i+3, j-1:j+2, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -318,8 +320,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.W:
-            window = image[i-1:i+2, j-2:j+1, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i-1:i+2, j-2:j+1, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -328,8 +330,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.NE:
-            window = image[i-2:i+1, j:j+3, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i-2:i+1, j:j+3, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -341,8 +343,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.SE:
-            window = image[i:i+3, j:j+3, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i:i+3, j:j+3, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -354,8 +356,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.NW:
-            window = image[i-2:i+1, j-2:j+1, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i-2:i+1, j-2:j+1, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
@@ -367,8 +369,8 @@ class VNG(DemosaicingAlgorithm):
                     result[i] = mean_color[i]
 
         elif direction == Compass.SW:
-            window = image[i:i+3, j-2:j+1, :].reshape((9, 3))
-            mean_color = np.nanmean(np.where(window != 0, window, np.nan), axis=0)
+            window = self.nanned[i:i+3, j-2:j+1, :].reshape((9, 3))
+            mean_color = np.nanmean(window, axis=0)
 
             for i in range(len(Color)):
                 if i == pixel_color:
