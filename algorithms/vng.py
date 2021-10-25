@@ -5,6 +5,8 @@ from enum import IntEnum
 from .common import DemosaicingAlgorithm
 from utils.image_preprocessing import Color
 
+from tqdm import trange
+
 
 class Compass(IntEnum):
     N = 0
@@ -29,17 +31,22 @@ class VNG(DemosaicingAlgorithm):
 
         self.colors = np.argmax(image, axis=-1)
         self.intensity = np.max(image, axis=-1)
+
+        # Replace zeros with Nans in order to compute means more comfortable
         self.nanned = np.where(image != 0, image, np.nan)
 
         # (height, width, channels)
         h, w, c = image.shape
 
-        for i in range(2, h - 2):
+        for i in trange(2, h - 2):
             for j in range(2, w - 2):
                 # Try to recover current pixel
                 result[i - 2][j - 2] = self.recover_pixel(i, j, image).astype("uint64")
 
-        return result
+        # During algorithm some values may become incorrect RGB value, we need to clip them
+        clipped_result = np.clip(result, 0, 255).astype("uint8")
+
+        return clipped_result
 
     def recover_pixel(self, i, j, image: np.ndarray) -> np.ndarray:
         # Choose one of four recovery cases
